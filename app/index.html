@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="de">
+	<head>
+		<meta charset="utf-8" />
+		<title>WED2 Miniprojekt: Angular - Umfangreiche Applikation</title>
+
+		<link rel="stylesheet" type="text/css" href="../../../resources/documentStyle.css">
+		<script src="../../../resources/solutions.js"></script>
+		<script src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"></script>
+	</head>
+	<body>
+		<h1>
+			<a class="backlink" href="../index.html">⇦</a>
+			WED2 Miniprojekt: Angular - Umfangreiche Applikation
+			<button id="showSolutions">Lösungen anzeigen/ausblenden</button>
+		</h1>
+
+
+		<h2>Services</h2>
+		<p>Bisher haben wir lediglich mit Controller-lokalen Daten gearbeitet. Wenn Daten (oder Funktionen) über die ganze Applikation hinweg verfügbar sein sollen, dann werden häufig AngularJS Services eingesetzt. AngularJS-Services erlauben eine Kapselung der Daten und Funktionen.</p>
+		<p>Lesen Sie das Kapitel zu Services auf angularjsbook.com:
+		<ul>
+			<li><a href="http://www.angularjsbook.com/angular-basics/chapters/services/" target="_blank">angularjsbook.com, Kapitel: Services</a></li>
+		</ul>
+
+		<ul>
+			<li>Definieren Sie einen &quot;Service&quot; namens &quot;StorageService { events: [] }&quot;, um die Liste mit den Events applikationsweit zur Verfügung zu stellen.
+
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->// service/storageService.js
+define(['app/model/event'], function(Event) {
+	'use strict';
+
+	var StorageService = function() {
+		this.events = [
+			// ...
+		];
+	};
+
+	return StorageService;
+});<!--
+					--></code></pre>
+				</div>
+			</li>
+			<li>
+				 Deklarieren Sie diesen als Angular Service und nutzen Sie ihn im EventListController (Tip: Dependency Injection).
+
+				 <div class="solution">
+					 <pre class="prettyprint"><code class="language-javascript"><!--
+-->// lafete.js
+define(['frameworks/angular', 'app/controllers/eventListController', 'app/services/storageService'],
+	 function (Angular, EventListController, StorageService) {
+	 // ...
+	 /* services */
+	 Lafete.service('StorageService', StorageService);
+
+	 /* controllers */
+	 EventListController.$inject = ['$scope', 'StorageService'];
+	 Lafete.controller('EventListController', EventListController);
+	 // ...
+
+
+//eventController.js
+var EventListController = function($scope, storageService) {
+	 this.scope = $scope;
+	 this.scope.events = storageService.events;
+	 // ...<!--
+					 --></code></pre>
+					 <p><a href="https://github.com/wasabideveloper/HSR.WED2.Angular.Lafete/releases/tag/StorageService" target="_blank">Tag: Event-Model</a></p>
+				 </div>
+			</li>
+				Wie Sie feststellen werden, failen nun die Tests. Schauen Sie sich den verlinkten Artikel von Sitepoint an und korrigieren Sie den EventListControllerTest, sodass er wieder funktioniert. Für die Injection von (Mock-)Componenten benötigen Sie noch angular-mock.js. Laden Sie die zu Ihrer Angular Version passenden Version herunter (<a href="https://code.angularjs.org/" target="_blank">code.angularjs.org</a></li>). und legen Sie sie unter &quot;tests/libraries/angular&quot; ab.
+				Angular-mocks binden Sie wie folgt ein:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->require.config({
+	baseUrl: './',
+	paths: {
+		// ...
+		'libraries/angularMocks': 'libraries/angular/angularMocks',
+		// ...
+	},
+	shim: {
+		// ...
+		'libraries/angularMocks': {
+			deps: ['frameworks/angular'],
+			exports: 'angular.mock'
+		},
+		// ...
+	}
+});<!--
+				--></code></pre>
+				Wenn Sie nun AngularMock mittels Require laden, so können Sie AngularMocks.inject verwenden, um Dependencies zu injecten. Den StorageService müssen Sie von Hand instanziieren, da dieser nur in der App bekannt ist, nicht aber in den Tests.
+			</li>
+
+			<div class="solution">
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->define(['app/controllers/eventListController', 'frameworks/angular', 'libraries/angularMocks', 'app/services/storageService'],
+	function (EventListController, Angular, AngularMocks, StorageService) {
+	'use strict';
+
+	var eventListController;
+
+	beforeEach(AngularMocks.inject(function ($rootScope) {
+		var scope = $rootScope.$new();
+		var storageService = new StorageService();
+		eventListController = new EventListController(scope, storageService);
+	}));
+
+	describe('EventListController', function() {
+		describe('property scope', function() {
+			it('contains 3 events', function() {
+				expect(3).toBe(eventListController.scope.events.length);
+			});
+		});
+	});
+});<!--
+				--></code></pre>
+			</div>
+		</ul>
+
+
+		<h2>Routing &amp; Views</h2>
+		<p>Bisher besitzt unsere Applikation nur eine View. Um mehrere Views ansteuern zu können, besitzt Angular eine &quot;Routing-Komponente&quot;.</p>
+		<p>Lesen Sie das Kapitel zu Routing auf angularjsbook.com:
+		<ul>
+			<li><a href="http://www.angularjsbook.com/angular-basics/chapters/routing/" target="_blank">angularjsbook.com, Kapitel: Routing</a></li>
+			<li><a href="http://www.sitepoint.com/unit-testing-angularjs-services-controllers-providers/" target="_blank">Sitepoint: Angular controllers unit testing</a></li>
+		</ul>
+
+		<h3>Angular-Route Installation</h3>
+		<ul>
+			<li>Laden Sie das Angular Module &quot;Angular-route&quot; in der passenden Version herunter (<a href="https://code.angularjs.org/" target="_blank">code.angularjs.org</a>) und legen Sie es im Ordner Libraries ab.</li>
+			<li>Fügen Sie Angular-Route in der Pfad-Konfiguration von Require hinzu und ergänzen Sie einen Shim Eintrag. Sie müssen Angular-Route nicht exportieren, sondern lediglich eine Abhängigkeit zum Angular definieren:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// main.js
+'libraries/angularRoute': {
+	deps: ['frameworks/angular']
+}<!--
+				--></code></pre>
+			</li>
+			<li>Ergänzen Sie Angular-Route als Dependency im Lafete Module und registrieren Sie es wie folgt beim Angular Module:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->var Lafete = Angular.module('lafete',['ngRoute']);<!--
+			--></code></pre>
+			</li>
+			<li>Damit Angular-Route korrekt zusammen mit Angular funktioniert, müssen Sie das Lafete Module explizit laden und das Attribut <code>data-ng-app=&quot;lafete&quot;</code> im Template entfernen:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// main.js
+Angular.bootstrap(document, [Lafete.name]);<!--
+				--></code></pre>
+		</ul>
+
+		<h3>Views</h3>
+		<ul>
+			<li>Lagern Sie den Inhalt des App-Containers nach &quot;source/views/list.html&quot; aus.
+
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-html"><!--
+-->&lt;div ng-view&gt;&lt;/div&gt;<!--
+					--></code></pre>
+				</div>
+			</li>
+			<li>Konfigurieren Sie mittels &quot;Routeprovider&quot; die Route &quot;/list&quot; und leiten Sie alle anderen Routen zu dieser um.
+
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->Lafete.config(function($routeProvider) {
+	$routeProvider.when('/list', {
+		controller: 'EventListController',
+		templateUrl: '/views/list.html'
+	})
+	.otherwise({
+		redirectTo: '/list'
+	});
+})<!--
+					--></code></pre>
+				</div>
+			</li>
+		</ul>
+		<p><strong>Einige Browser unterbinden Ajax Zugriffe auf lokale Dateien.</strong> Bei der Nutzung dieser Browser werden Sie eine Netzwerkfehlermeldung erhalten. Starten Sie die App in diesem Fall nicht direkt vom Dateisystem, sondern über einen HTTP-Server. Webstorm kann dies. <br />
+		Ansonsten können Sie auch Node dazu verwenden: <br />
+		Installieren Sie Node und laden sie das Node Modul &quot;http-server&quot; <code>npm install http-server</code>. Wechseln Sie nun ins Verzeichnis &quot;source&quot; und starten Sie den Server mittels Command <code>http-server</code>. Jetzt können Sie über <a href="localhost:8080" target="_blank">localhost:8080</a> bzw. den Port, den Node Ihnen auf der Commandline anzeigt, die App im Browser aufrufen.</p>
+
+
+		<h2>Detailansicht</h2>
+		<ul>
+			<li><a href="https://developer.mozilla.org/de/docs/Web/JavaScript/Reference/Global_Objects/RegExp" target="_blank">MDN: RegExp</a></li>
+		</ul>
+		<p>Für die Detailansicht benötigen wir noch einen eindeutigen Identifier für Events. Über diesen sollen Events auch angesprochen werden können.</p>
+		<ul>
+			<li>Erstellen Sie die Klasse &quot;services/uuidService&quot;:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->define([], function() {
+	'use strict';
+
+	var UUIDService = {};
+	// see https://en.wikipedia.org/wiki/Universally_unique_identifier
+
+	// Version 4
+	UUIDService.getRandomUuid = function() {
+		// source: http://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
+		var uuidScheme = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+		var timestamp = new Date().getTime();
+
+		return uuidScheme.replace(/[xy]/g, function(character) {
+			var randomNumber = (timestamp + Math.random()*16)%16 | 0;
+			timestamp = Math.floor(timestamp/16);
+			return (character == 'x' ? randomNumber : (randomNumber&0x3|0x8)).toString(16);
+		});
+	}
+
+	return UUIDService;
+});<!--
+				--></code></pre>
+			</li>
+			<li>Erstellen Sie einen Test, der überprüft, ob neu erstellte Events eine UUID als &quot;id&quot; besitzen. Sie können dazu folgenden regulären Ausdruck verwenden: <pre class="prettyprint"><code class="language-javascript">new RegExp('[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')</code></pre><strong>Tip</strong>: Die Jasmine Funktion <code>toMatch()</code> hilft bei der Überprüfung von Werten mittels Regex Ausdrücken.
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->it('Expects event id to be UUID', function() {
+	var uuidRegex = new RegExp('[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
+	expect(event.id).toMatch(uuidRegex);
+});<!--
+				--></code></pre>
+				</div>
+			</li>
+			<li>Ergänzen Sie den Event um ein Property &quot;id&quot;. Nutzen Sie dazu den erstellten UUIDService.
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->define(['app/services/uuidService'], function(UUIDService) {
+	'use strict';
+
+	var Event = function(name, description, targetGroup, eventGift, location, preparation, event, maximalAmoutOfGuests) {
+		this.id = UUIDService.getRandomUuid();
+		// ...<!--
+					--></code></pre>
+				</div>
+			</li>
+			<li>Die Eventliste im StorageService soll wie unten beschrieben umgebaut werden. Erstellen Sie dazu zuerst die Testsuite &quot;storageServiceTest&quot; und passen Sie dann den StorageService an:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/services/storageServiceTest.js
+define(['app/model/event', 'app/services/storageService'], function (Event, StorageService) {
+	'use strict';
+
+	describe('EventStorageService test suite', function() {
+		var event, storageService;
+
+		// setup
+		beforeEach(function() {
+			storageService = new StorageService();
+			event = new Event(
+				// COPY from eventTest.js
+			);
+ 		});
+
+		describe('get()', function() {
+			beforeEach(function() {
+				// TODO
+			});
+
+			describe('by object id', function() {
+				it('returns the object', function() {
+					// TODO
+				});
+			});
+
+			describe('by inexistent object id', function() {
+				it('returns null', function() {
+					// TODO
+				});
+			});
+		});
+
+
+		describe('all()', function() {
+			it('returns an Array', function() {
+				// TODO
+			});
+		});
+
+		describe('add()', function() {
+			it('inserts element', function() {
+				// TODO
+			});
+
+			describe('same element again', function() {
+				// TODO
+
+				beforeEach(function() {
+					// TODO
+				});
+
+				it('doesn\'t affect repository size', function() {
+					// TODO
+				});
+
+				it('returns false', function() {
+					// TODO
+				});
+			});
+		});
+	});
+});
+
+
+// classes/services/storageService.js
+// ...
+this.events = new (function() {
+	var eventList = {};
+	/**
+	 * Find event by identifier
+	 *
+	 * @param string identifier
+	 * @return Event or null
+	 */
+	this.get = function(identifier) {
+		// TODO
+	};
+	/**
+	 * Get all events
+	 *
+	 * @return Event[]
+	 */
+	this.all = function() {
+		// TODO. Use JavaScript map function instead of custom loop!
+	};
+	/**
+	 * Add event if not already in list
+	 * @param Event event
+	 * @return boolean if added successfull
+	 */
+	this.add = function(event) {
+		// TODO
+	};
+})();<!--
+				--></code></pre>
+				Und passen Sie den Zugriff auf die Events im EventListController an.
+			</li>
+			<li>Wie Ihnen bestimmt aufgefallen ist, verletzen unsere Tests mittlerweile das &quot;DRY&quot; (Don't repeat yourself)-Prinzip.
+			Wir initialisieren den gleichen Event mehrmals in verschiedenen Testsuiten. Lagern Sie die Erstellung dieses Test-Events in eine &quot;EventFactory&quot; aus.
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/factories/eventFactory.js
+define(['app/model/event'], function (Event) {
+	'use strict';
+
+	var EventFactory = {
+		createEvent: function() {
+			return new Event(
+				// COPIED from eventTest.js
+			);
+		}
+	};
+
+	return EventFactory;
+});
+
+// tests/classes/model/eventTest.js, tests/classes/services/storageServiceTest.js
+define(['tests/factories/eventFactory', ... ],
+	function(EventFactory, ...) {
+	// ...
+	beforeEach(function() {
+		event = EventFactory.createEvent();
+	// ...
+<!--
+					--></code></pre>
+					<p><a href="https://github.com/wasabideveloper/HSR.WED2.Angular.Lafete/releases/tag/EventFactory" target="_blank">Tag: EventFactory</a></p>
+				</div>
+			</li>
+			<li>Erstellen Sie eine Detailansicht für Events.
+				Erstellen Sie dazu einen Ordner &quot;event&quot; in controllers.
+				Verschieben Sie auch den EventListController dorthin und passen Sie die Angular-Konfiguration an.
+
+				<div class="solution">
+
+				</div>
+			</li>
+			<li>Verlinken Sie die Events in der Liste.</li>
+			<li>Definieren Sie eine Route <code>/events/:eventId</code>.
+				Ändern Sie die Route der bestehenden Listenansicht nach <code>/events</code>.
+				<div class="solution">
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/controllers/event/detailController.js
+define([], function() {
+	'use strict';
+
+	var EventDetailController = function($scope, $routeParams, storageService) {
+		this.scope = $scope;
+		this.scope.event = storageService.events.get($routeParams.eventId);
+	}
+
+	return EventDetailController;
+});
+
+// classes/modules/lafete.js
+// ...
+EventDetailController.$inject = ['$scope', '$routeParams', 'StorageService'];
+Lafete.controller('EventDetailController', EventDetailController);
+// ...
+.when('/events/:eventId', {
+	controller: 'EventDetailController',
+	templateUrl: '/views/detail.html'
+})<!--
+					--></code></pre>
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->&lt;!-- views/list.html --&gt;
+&lt;!-- ... --&gt;
+&lt; data-ng-href="#/events/{{event.id}}"&gt;&lt;strong&gt;{{event.name}}&lt;/strong&gt;&lt;/a&gt;
+&lt;!-- ... --&gt;
+
+&lt;!-- views/detail.html --&gt;
+&lt;h2&gt;{{event.name}}&lt;h2&gt;
+&lt;p&gt;{{event.description}}&lt;/p&gt;
+&lt;p data-ng-if="event.maximalAmoutOfGuests"&gt;
+&lt;strong&gt;Maximal amount of guests:&lt;/strong&gt;
+{{event.maximalAmoutOfGuests}}
+&lt;/p&gt;
+
+&lt;h3 data-ng-if="event.targetGroup"&gt;Target group&lt;/h3&gt;
+&lt;p data-ng-if="event.targetGroup"&gt;{{event.targetGroup}}&lt;/p&gt;
+
+&lt;h3 data-ng-if="event.eventGift"&gt;Event gift&lt;/h3&gt;
+&lt;p data-ng-if="event.eventGift"&gt;{{event.eventGift}}&lt;/p&gt;
+
+&lt;h3&gt;Location&lt;/h2&gt;
+&lt;p&gt;
+&lt;strong&gt;{{event.location.name}}&lt;/strong&gt;&lt;br /&gt;
+{{event.location.street}}&lt;br /&gt;
+{{event.location.plz}} {{event.location.city}}
+&lt;/p&gt;
+
+&lt;h3&gt;Date &amp; time&lt;/h3&gt;
+&lt;p&gt;{{event.begin | date:"dd.MM.yy HH:mm"}} - {{event.end | date:"dd.MM.yy HH:mm"}}&lt;/p&gt;
+
+&lt;h3 data-ng-if="event.preparation"&gt;Preparation&lt;/h3&gt;
+&lt;p data-ng-if="event.preparation"&gt;{{event.preparationBegin | date:"dd.MM.yy HH:mm"}} - {{event.preparationEnd | date:"dd.MM.yy HH:mm"}}&lt;/p&gt;<!--
+					--></code></pre>
+					<p><a href="https://github.com/wasabideveloper/HSR.WED2.Angular.Lafete/releases/tag/Detailview" target="_blank">Tag: EventFactory</a></p>
+				</div>
+			</li>
+		</ul>
+
+
+		<h2>Refactoring</h2>
+		<p>Mittlerweile haben sich in unserer Applikation einige Unschönheiten eingeschlichen.
+			Führen Sie folgende Refactorings durch.
+			Führen Sie nach jedem Refactoring die Applikation und die Tests aus,
+			um zu gewährleisten, das sie beim Refactorn keine neuen Fehler eingebaut haben.
+		</p>
+		<ul>
+			<li>
+				Verschieben Sie die Templates &quot;detail.html&quot; und &quot;list.html&quot;
+				in ein Unterverzeichnis &quot;event&quot;.
+				Passen Sie die Modulkonfiguration entsprechend an.
+			</li>
+			<li>
+				Die für Events erzwungene UUID beim Erstellen einer Instanz schränkt die Testbarkeit ein,
+				da zu Testzwecken keine vorgegebene UUID gesetzt werden kann.
+				Dies führt im aktuellen Entwicklungsbetrieb auch dazu,
+				das Sie auf der Detailansicht nicht neu laden können,
+				weil jedes Mal neue UUID's generiert werden.
+				Ergänzen Sie den Konstruktor des Event um einen weiteren Parameter und
+				lassen Sie die UUID nur automatisch setzen,
+				wenn dieser leer ist. Schreiben Sie zuerst einen Test dafür und implementieren Sie anschliessend Ihre Lösung.
+				Passen Sie auch den StorageService an,
+				sodass die Events mit vordefinierten UUID's anstelle der Zufälligen initialisiert werden.
+
+				<div class="solution">
+
+					<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/model/event.js
+// ...
+var Event = function(name, description, targetGroup, eventGift, location, preparation, event, maximalAmoutOfGuests, id) {
+	this.id = id || UUIDService.getRandomUuid();
+// ...<!--
+					--></code></pre>
+				</div>
+			</li>
+		</ul>
+
+
+		<h2>Server Anbindung</h2>
+		<p>Bisher haben wir einen StorageService mit statischen Daten als Basis für unsere Event-Liste verwendet. Jetzt wollen wir die Events über ein Repository vom Server laden.</p>
+		<p>Für die Tests existiert eine statische Route <code>/tests</code>, damit Sie die Tests auch aufrufen können, wenn Sie die Applikation über den Node.js-Server ausliefern.</p>
+
+		<p>Lesen Sie das Kapitel zu den HTTP-Services auf angularjsbook.com:
+		<ul>
+			<li><a href="http://www.angularjsbook.com/angular-basics/chapters/http/" target="_blank">angularjsbook.com, Kapitel: HTTP</a></li>
+		</ul>
+		<ul>
+			<li>Benennen Sie dazu den StorageService in EventRepository um, verschieben sie es in einen neuen Ordner <code>classes/repository</code> und passen Sie alle Referenzen an. Vergessen Sie nicht, auch alle Tests anzupassen, sodass diese wieder funktionieren.</li>
+			<li>Damit die Tests trotz dem Einbau der Ajax Calls funktionieren, müssen wir die API-Calls mocken.
+				Importieren sie dazu AngularMock und passen Sie den EventRepositoryTest an:
+
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/repository/eventRepositoryTest.js
+...
+var event, eventRepository, $http, $httpBackend;
+
+// setup
+beforeEach(AngularMocks.inject(function($injector) {
+	$http = $injector.get('$http');
+	$httpBackend = $injector.get('$httpBackend');
+
+	eventRepository = new EventRepository($http);
+	event = EventFactory.createEvent();
+
+	// $http Service will return this list of events when call /api/events
+	$httpBackend.when('GET', eventRepository.urls.all).respond({
+		events: [{id: 1, name: 'Dinner'},{id: 2, name: 'Lunch'}]
+	});
+}));
+
+// Check if there are no hanging requests
+afterEach(function() {
+	$httpBackend.verifyNoOutstandingExpectation();
+	$httpBackend.verifyNoOutstandingRequest();
+});
+...
+it('returns an Array', function() {
+	var events = null;
+	eventRepository.all(function(eventList) {
+		events = eventList;
+	});
+	// Mock ajax channel needs to be flushed (calls needs to be fired) befor check
+	$httpBackend.flush();
+	expect(events).toEqual(jasmine.any(Array));
+});
+
+it('returns two events', function() {
+	// TODO
+});
+...
+<!--
+				--></code></pre>
+			</li>
+			<li>Passen Sie die Dependency Injection für das EventRepository an und ersetzen Sie im EventRepository die Aufrufe auf die lokale Event-Liste in der all()-Methode mit einem API-Call. Verwenden Sie dazu den AngularJS HTTP-Service:
+
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/modules/lafete.js
+EventRepository.$inject = ['$http'];
+Lafete.service('EventRepository', EventRepository);
+<!--
+				--></code></pre>
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/repository/eventRepository.js
+...
+var EventRepository = function($http) {
+	this.urls = {
+		all: '/api/events',
+		get: '/api/events/{eventId}',
+		add: '/api/events'
+	}
+...
+/**
+ * Get all events
+ *
+ * @return Event[]
+ */
+this.all = function(successCallback) {
+	// Angular HTTP-Service get request
+	// return event list by callback on success
+	$http.get(this.urls.all)
+		.success(function(data) {
+			successCallback(data.events);
+		});
+};
+...
+<!--
+				--></code></pre>
+			</li>
+			<li>Da Sie jetzt mit einem Callback arbeiten, müssen Sie auch alle Stellen anpassen, die all() verwenden (z.B. den ListController und den Test für add()):
+
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/controllers/event/listController.js
+...
+var EventListController = function($scope, EventRepository) {
+	this.scope = $scope;
+	EventRepository.all(function(events) {
+		this.scope.events = events;
+	});
+};
+...
+<!--
+				--></code></pre>
+				Ihnen wird auffallen, das wir für den add()-Test wiederum die all() Methode verwendet haben und dadurch diese mittesten. Aus diesem Grunde failt dieser Test auch, weil wir die all() Methode umgebaut haben. Diese Abhängigkeit beseitigen wir, indem wir direkt auf die Liste mit den Events zugreifen:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/repository/eventRepositoryTest.js
+...
+describe('same element again', function() {
+	var size, status2;
+
+	beforeEach(function() {
+		eventRepository.add(event);
+
+		size = eventRepository.events.length;
+		status2 = eventRepository.add(event);
+	});
+
+	it('doesn\'t affect repository size', function() {
+		expect(eventRepository.events.length).toBe(size);
+	});
+	it('returns false', function() {
+		expect(status2).toBe(false);
+	});
+});<!--
+				--></code></pre>
+			</li>
+			<li>Sie werden feststellen, dass auch der Controller Test failt. Grund dafür ist, dass wir anstatt eines Mocks das echte Repository verwendet haben und dieses somit mittesten. Auch diese Abhängigkeit wollen wir entfernen, damit wir nur den Controller selbst testen:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/controllers/eventListControllerTest.js
+...
+var scope, eventRepository, $httpBackend;
+
+beforeEach(AngularMocks.inject(function($injector) {
+	scope = $injector.get('$rootScope').$new();
+
+	var events = [{id: 1, name: 'Dinner'},{id: 2, name: 'Lunch'},{id: 3, name: 'Brunch'}];
+	// Mock repository to test controller only
+	eventRepository = {
+		all: function(successCallback) {
+			successCallback(events);
+		}
+	};
+}));
+
+describe('EventListController', function() {
+	describe('property scope', function() {
+		it('contains 3 events', function() {
+			var eventListController = new EventListController(scope, eventRepository);
+			expect(3).toBe(eventListController.scope.events.length);
+		});
+	});
+});
+...<!--
+					--></code></pre>
+			</li>
+			<li>Nachdem Sie alle von all() abhängigen Klassen und Tests angepasst haben, sollten die Tests wieder grün durchlaufen und die Liste in Benutzeroberfläche wie bisher funktionieren. Die Detailansicht zeigt im Moment nichts an, da diese noch auf die alte Liste mit den lokalen Events zeigt und diese entsprechend andere ID's verwenden.</li>
+			<li>Im Moment liefert die all() Methode einfache Objekte statt Event-Objekte zurück. Dadurch fehlen uns unter anderem die Properties &quot;begin&quot; und &quot;end&quot;. Wir sollten die Objekte noch konvertieren, bevor wir sie zurückliefern. Folgender Tests überprüft dies:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// tests/classes/repository/eventRepositoryTest.js
+describe('all()', function() {
+	...
+	it('returns real javascript objects', function() {
+			$httpBackend.expectGET(eventRepository.urls.all);
+			var events = null;
+			eventRepository.all(function(eventList) {
+				events = eventList;
+			});
+			$httpBackend.flush();
+			expect(events[0]).toEqual(jasmine.any(Event));
+			expect(events[1]).toEqual(jasmine.any(Event));
+	});
+	...<!--
+				--></code></pre>
+				Jetzt passen wir die all()-Methode entsprechend an, bis die Tests grün durchlaufen. Dazu verwenden wir eine Factory-Methode:
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/model/event.js
+...
+};
+
+/**
+ * Create Event object from data transfer object (json object)
+ */
+Event.createFromDTO = function(jsonData) {
+	return new Event(
+		jsonData.name,
+		jsonData.description,
+		jsonData.targetGroup,
+		jsonData.eventGift,
+		jsonData.location,
+		jsonData.times,
+		jsonData.maximalAmoutOfGuests,
+		jsonData.id
+	);
+};
+
+return Event;
+...
+<!--
+				--></code></pre>
+				<pre class="prettyprint"><code class="language-javascript"><!--
+-->// classes/repository/eventRepository.js
+...
+.success(function(data) {
+	// map applys a function on every element in the array and returns the result as new array
+	var events = data.events.map(function(eventDTO) {
+		return Event.createFromDTO(eventDTO);
+	});
+	successCallback(events);
+});
+...<!--
+				--></code></pre>
+			</li>
+			<li>Ersetzen Sie nun auch die Aufrufe auf die lokale Event-Liste in den Repository-Methoden get() und add() mit API-Calls, so wie wir es bei der all()-Methode gemacht haben. Verwenden Sie dazu auch wieder den AngularJS HTTP-Service. Passen Sie die Tests an und Mocken Sie die Aufrufe des ähttpService für get() und add(), sodass Sie diese Methoden wie die all()-methode isoliert testen können.</li>
+		</ul>
+  </body>
+</html>
